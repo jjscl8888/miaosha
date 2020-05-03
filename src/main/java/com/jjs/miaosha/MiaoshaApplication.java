@@ -9,7 +9,7 @@ import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 
 @SpringBootApplication
-public class MiaoshaApplication {
+public class MiaoshaApplication{ // extends SpringBootServletInitializer {
 
 	@Autowired
 	private RedisConfig redisConfig;
@@ -27,4 +27,9 @@ public class MiaoshaApplication {
 		return new JedisPool(config, redisConfig.getHost(), redisConfig.getPort(),
 				redisConfig.getTimeout() * 1000);
 	}
+
+//	@Override
+//	protected SpringApplicationBuilder configure(SpringApplicationBuilder builder) {
+//		return builder.sources(MiaoshaApplication.class);
+//	}
 }

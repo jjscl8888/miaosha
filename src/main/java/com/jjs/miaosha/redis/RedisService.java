@@ -59,7 +59,7 @@ public class RedisService {
         }
     }
 
-    public <T> String beanToString(T bean) {
+    public static  <T> String beanToString(T bean) {
         if (bean == null) {
             return null;
         }
@@ -74,7 +74,7 @@ public class RedisService {
         return JSON.toJSONString(bean);
     }
 
-    public <T> T stringToBean(String str, Class<T> clazz) {
+    public static  <T> T stringToBean(String str, Class<T> clazz) {
         if (StringUtils.isEmpty(str) || clazz == null) {
             return null;
         }
@@ -122,6 +122,20 @@ public class RedisService {
             jedis = jedisPool.getResource();
             String realKey = prefix.getPrefix() + key;
             return jedis.decr(realKey);
+        } finally {
+            if (jedis != null) {
+                jedis.close();
+            }
+        }
+    }
+
+    public boolean delete(KeyPrefix prefix, String key) {
+        Jedis jedis = null;
+        try {
+            jedis = jedisPool.getResource();
+            String realKey = prefix.getPrefix() + key;
+
+            return jedis.del(realKey) > 0;
         } finally {
             if (jedis != null) {
                 jedis.close();

@@ -1,6 +1,7 @@
 package com.jjs.miaosha.controller;
 
 import com.jjs.miaosha.domain.User;
+import com.jjs.miaosha.qmq.QmqSend;
 import com.jjs.miaosha.redis.RedisService;
 import com.jjs.miaosha.redis.UserKey;
 import com.jjs.miaosha.service.UserService;
@@ -18,6 +19,9 @@ import org.springframework.web.bind.annotation.ResponseBody;
 @Controller
 @RequestMapping("/demo")
 public class SimpleController {
+
+    @Autowired
+    private QmqSend qmqSend;
 
     @Autowired
     private UserService userService;
@@ -45,5 +49,14 @@ public class SimpleController {
         redisService.set(UserKey.getById,"key1", user);
 
         return redisService.get(UserKey.getById,"key1", User.class);
+    }
+
+    @RequestMapping("/mq")
+    @ResponseBody
+    public String mq(Model model) {
+
+        qmqSend.send("hello world");
+
+        return "hello";
     }
 }

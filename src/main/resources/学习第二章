@@ -1,0 +1,155 @@
+## 登陆功能：
+1）连接数据库，建立表
+create table `miaosha_user` (
+id bigint(20) not null comment '用户ID，手机号码',
+nickname varchar(255) not null,
+password varchar(32) default null comment 'MD5(MD5(pass名文+固定salt)+ salt)',
+salt varchar(10) default null,
+head varchar(128) default null comment '头像，云存储得ID',
+register_date datetime default null comment '上次登陆时间',
+login_count int(11) default '0' comment '登陆次数',
+primary key(id)
+) engine = InnoDB default charset = utf8mb4;
+
+2）进行两次MD5
+<dependency>
+    <groupId>commons-codec</groupId>
+    <artifactId>commons-codec</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.apache.commons</groupId>
+    <artifactId>commons-lang3</artifactId>
+</dependency>
+2.1)用户端： pass1=md5(名文+固定salt)       网络上传输安全保证
+2.2)服务端： pass = md5(pass1+随机salt)     数据库数据泄露
+
+
+3）JSR303校验器
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-validation</artifactId>
+</dependency>
+
+1）在controller的接受参数前面加上@Valid注解
+2）在对应的vo参数实体上加上注解
+3）可以自定义校验的注解：
+@Target({ElementType.METHOD, ElementType.FIELD, ElementType.ANNOTATION_TYPE, ElementType.CONSTRUCTOR, ElementType.PARAMETER, ElementType.TYPE_USE})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@Constraint(
+        validatedBy = {IsMobileValidator.class} // 将该注解使用这个类处理
+)
+public @interface IsMobile {
+
+    boolean required() default true;
+
+    String message() default "手机号格式错误";
+
+    Class<?>[] groups() default {};
+
+    Class<? extends Payload>[] payload() default {};
+}
+
+// 实现ConstraintValidator接口
+public class IsMobileValidator implements ConstraintValidator<IsMobile, String> {
+
+    private boolean required = false;
+
+    // 返回该注解相关信息
+    @Override
+    public void initialize(IsMobile constraintAnnotation) {
+        required = constraintAnnotation.required();
+    }
+
+    // 具体校验方法
+    @Override
+    public boolean isValid(String value, ConstraintValidatorContext constraintValidatorContext) {
+        if (required) {
+            return ValidatorUtil.isMobile(value);
+        }
+        if (StringUtils.isEmpty(value)) {
+            return true;
+        } else {
+            return ValidatorUtil.isMobile(value);
+        }
+    }
+}
+
+4）全局异常拦截器
+@ControllerAdvice
+@ResponseBody
+public class GlobalExceptionHandler {
+    @ExceptionHandler(value = Exception.class)
+    public Result<String> exceptionHandler(HttpServletRequest request, Exception e) {
+        if (e instanceof BindException) {
+            BindException ex = (BindException)e;
+            List<ObjectError> errors = ex.getAllErrors();
+            ObjectError error = errors.get(0);
+            String msg = error.getDefaultMessage();
+            return Result.error(CodeMsg.BIND_ERROR.fillArg(msg));
+        } else {
+            return Result.error(CodeMsg.SERVER_ERROR);
+        }
+    }
+}
+
+
+5）分布式session
+    将服务端生成token，并将token作为key，用户信息作为value，存入redis，并将token通过cookie写入客户端
+    客户端每次请求都会带有cookie，然后服务端根据cookie中token从redis中拿用户信息。
+
+    5.1）如何将请求执行之前，通过token获取用户信息并作为参数传入到controller方法中。
+    @Configuration
+    public class WebConfig extends WebMvcConfigurerAdapter {
+
+        @Autowired
+        private UserArgumentResolvers userArgumentResolvers;
+
+        /**
+         *  将参数注入实现
+         * @param argumentResolvers
+         */
+        @Override
+        public void addArgumentResolvers(List<HandlerMethodArgumentResolver> argumentResolvers) {
+            argumentResolvers.add(userArgumentResolvers);
+        }
+    }
+    @Service
+    public class UserArgumentResolvers implements HandlerMethodArgumentResolver {
+
+        @Autowired
+        private MiaoShaUserService userService;
+
+        @Override
+        public boolean supportsParameter(MethodParameter methodParameter) {
+            Class<?> clazz = methodParameter.getParameterType();
+            return clazz == MiaoshaUser.class;
+        }
+
+        @Nullable
+        @Override
+        public Object resolveArgument(MethodParameter methodParameter, @Nullable ModelAndViewContainer modelAndViewContainer, NativeWebRequest nativeWebRequest, @Nullable WebDataBinderFactory webDataBinderFactory) throws Exception {
+            HttpServletRequest request = nativeWebRequest.getNativeRequest(HttpServletRequest.class);
+            HttpServletResponse response = nativeWebRequest.getNativeResponse(HttpServletResponse.class);
+
+            String paramToken = request.getParameter(MiaoShaUserService.COOKIE_NAME_TOKEN);
+            String cookieToken = getCookieValue(request, MiaoShaUserService.COOKIE_NAME_TOKEN);
+
+            if (StringUtils.isEmpty(cookieToken) && StringUtils.isEmpty(paramToken)) {
+                return "login";
+            }
+            String token = StringUtils.isEmpty(paramToken) ? cookieToken : paramToken;
+            return userService.getByToken(response, token);
+
+        }
+
+        private String getCookieValue(HttpServletRequest request, String cookieNameToken) {
+            Cookie[] cookies = request.getCookies();
+            for (Cookie cookie : cookies) {
+                if (cookie.getName().equalsIgnoreCase(cookieNameToken)) {
+                    return cookie.getValue();
+                }
+            }
+            return "";
+        }
+    }

@@ -9,4 +9,8 @@ public class OrderKey extends BasePrefix {
     public OrderKey(int expireSeconds, String prefix) {
         super(expireSeconds, prefix);
     }
+
+    public static KeyPrefix orderKey = new OrderKey(0, "msgd");
+
+    public static KeyPrefix orderCreateKey = new OrderKey(0, "orderCreateKey");
 }

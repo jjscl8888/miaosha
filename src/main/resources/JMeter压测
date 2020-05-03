@@ -1,0 +1,22 @@
+##
+    1、打war包
+    1.1）修改pom
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-war-plugin</artifactId>
+            <configuration>
+                <failOnMissingWebXml>false</failOnMissingWebXml>
+            </configuration>
+        </plugin>
+
+        <packaging>war</packaging>
+    1.2)  修改启动类(继承SpringBootServletInitializer 并实现configure方法)
+        @Override
+       	protected SpringApplicationBuilder configure(SpringApplicationBuilder builder) {
+       		return builder.sources(MiaoshaApplication.class);
+       	}
