@@ -1,0 +1,127 @@
+
+## 返回结果封装：
+Result<T> 包含返回状态码+消息+data
+CodeMsg --定义一个常见得错误类型，用来初始化Result
+
+
+## Redis的Key设置规则：
+    1）设置一个接口
+   public interface KeyPrefix {
+       int expireSeconds();
+       String getPrefix();
+   }
+   2）BasePrefix实现该接口，并实现这两个方法
+   3）其他对于的实现BasePrefix抽象类，并提供一些静态常量
+
+## 全局异常
+    定义自己异常类，需要继承RuntimeException类；
+    编写全局异常处理方法，该类需要@ControllerAdvice@ResponseBody注解
+    该类的方法上使用该注解拦截需要处理的异常@ExceptionHandler(value = Exception.class)
+
+## 分布式session
+    登陆成功后，服务端生成token，并将token作为key,用户信息作为value存入redis.同时将
+    token写入reponse的cookies中。当客户端访问时候，会带上该token，这样根据token来得到用户信息。
+
+## 参数提前解析，直接在Controller层使用对象。
+    1）创建参数封装类
+     @Service
+        public class UserArgumentResolvers implements HandlerMethodArgumentResolver {
+    2）实现以下方法
+       public boolean supportsParameter(MethodParameter methodParameter) {
+           Class<?> clazz = methodParameter.getParameterType();
+           return clazz == MiaoshaUser.class;
+       }
+
+       @Nullable
+       @Override
+       public Object resolveArgument(MethodParameter methodParameter, @Nullable ModelAndViewContainer modelAndViewContainer, NativeWebRequest nativeWebRequest, @Nullable WebDataBinderFactory webDataBinderFactory)
+
+##  打war包
+    1.1）修改pom
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-war-plugin</artifactId>
+            <configuration>
+                <failOnMissingWebXml>false</failOnMissingWebXml>
+            </configuration>
+        </plugin>
+
+        <packaging>war</packaging>
+    1.2)  修改启动类(继承SpringBootServletInitializer 并实现configure方法)
+        @Override
+       	protected SpringApplicationBuilder configure(SpringApplicationBuilder builder) {
+       		return builder.sources(MiaoshaApplication.class);
+       	}
+
+## 测试用户生成和token获取
+    使用DBUtils获取数据连接
+    使用UserUtils插入用户和获取token
+
+
+## 配置属性自动注入
+@Component
+@ConfigurationProperties(prefix = "redis")
+public class RedisConfig {
+
+    private String host;
+    private int port;
+    private int timeout;
+    private String password;
+    private int poolMaxTotal;
+    private int poolMaxIdle;
+    private int poolMaxWait;
+}
+
+## 用户密码保存规则：
+    passwd = MD5(前端明文+盐[此时盐是固定值,保存前端页面])
+    MD5（passwd + 盐[此时盐是个随机数，保存数据库]）
+    检验方式：先获取前端出进来密文，然后从数据库中获取盐，进行md5加密然后和数据库密码进行比较。
+
+## RabbitMq
+    4种工作模式
+
+## 安全优化：
+   限制访问次数(uid+goodsId)-->通过自定义注解，在拦截器时候进行校验
+   验证码--》（防机器人刷/分散流量）
+   隐藏接口--》在秒杀前先获取一个动态的随机字符串（作为秒杀路径参数）在秒杀前隐藏秒杀接口
+
+## 接口优化：
+    优化之前操作：
+        1）查询库存是否还有
+        2）校验该用户该商品已经秒杀过
+        3）减库存生成订单
+    优化之后：
+        1）在初始化之前，先将库存存入redis中（该类实现InitializingBean），并本地初始化一个map,
+        用来标识该商品是否已经无库存。
+
+        2）通过map判断是否库存有；
+        3）通过redis获取减1后库存数量，当库存数量小于0是否表示库存已经没有，将map置位true;
+        4)校验该用户该商品已经秒杀过
+        5)将请求发送mq。
+        6）mq消费后，将redis标识该用户是否已经秒杀成功（前端通过定时轮询获取结果）
+
+## 页面优化：
+    页面缓存：（只适合短时间缓存---商品列表页面(无参数)）
+       a)取缓存；
+       b)手动渲染模板
+       c)结果输出
+        主要手动渲染页面放入缓存，并从缓存中获取返回。
+
+    URL缓存:(商品详情页面（有参数，有针对性）)
+       a)取缓存；
+       b)手动渲染模板
+       c)结果输出
+
+    对象缓存（粒度更细）
+
+    页面静态化，前后端分离
+
+## 主要问题：
+    超卖问题：
+        1）同一个用户同时买多个请情况，通过数据库uid+goodsid为唯一索引解决
+        2）库存超卖情况：在执行减库存sql条件中加上stock>0. 
